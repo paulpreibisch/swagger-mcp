@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/danishjsheikh/swagger-mcp/app/models"
+	"github.com/paulpreibisch/swagger-mcp/app/models"
 )
 
 func ExtractSchemaName(ref, schemaType string) string {

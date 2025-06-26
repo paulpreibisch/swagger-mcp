@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/danishjsheikh/swagger-mcp/app/models"
+	"github.com/paulpreibisch/swagger-mcp/app/models"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

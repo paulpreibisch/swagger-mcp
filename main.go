@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	mcpserver "github.com/danishjsheikh/swagger-mcp/app/mcp-server"
-	"github.com/danishjsheikh/swagger-mcp/app/models"
-	"github.com/danishjsheikh/swagger-mcp/app/swagger"
+	mcpserver "github.com/paulpreibisch/swagger-mcp/app/mcp-server"
+	"github.com/paulpreibisch/swagger-mcp/app/models"
+	"github.com/paulpreibisch/swagger-mcp/app/swagger"
 )
 
 func getSseUrlAddr(sseUrl, sseAddr string) (string, string) {

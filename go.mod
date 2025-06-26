@@ -1,4 +1,4 @@
-module github.com/danishjsheikh/swagger-mcp
+module github.com/paulpreibisch/swagger-mcp
 
 go 1.23.6
 
