@@ -90,4 +90,5 @@ type Config struct {
 	SpecUrl string    `json:"specUrl"` // URL of the Swagger JSON specification
 	SseCfg  SseConfig `json:"sseCfg"`  // SSE related configuration
 	ApiCfg  ApiConfig `json:"apiCfg"`  // API related configuration
+	Quiet   bool      `json:"quiet"`   // Suppress endpoint discovery output for MCP integration
 }

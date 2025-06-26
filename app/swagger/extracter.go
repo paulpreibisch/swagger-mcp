@@ -32,7 +32,12 @@ func getBaseURL(swaggerSpec models.SwaggerSpec) string {
 	return baseURL
 }
 
-func ExtractSwagger(swaggerSpec models.SwaggerSpec) {
+func ExtractSwagger(swaggerSpec models.SwaggerSpec, quiet bool) {
+	// Skip endpoint discovery output if quiet mode is enabled
+	if quiet {
+		return
+	}
+	
 	baseURL := getBaseURL(swaggerSpec)
 	
 	for path, methods := range swaggerSpec.Paths {

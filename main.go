@@ -75,6 +75,7 @@ func main() {
 	apiKeyAuth := flag.String("apiKeyAuth", "", "API key auth, format: 'passAs:name=value', passAs=header/query/cookie, multiple by comma")
 	headers := flag.String("headers", "", "Additional headers to include in requests (format: name1=value1,name2=value2)")
 	sseHeaders := flag.String("sseHeaders", "", "Read headers from sse request, and pass to API request (format: name1,name2)")
+	quiet := flag.Bool("quiet", false, "Suppress endpoint discovery output for MCP integration")
 
 	flag.Parse()
 
@@ -111,7 +112,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load Swagger spec: %v", err)
 	}
-	swagger.ExtractSwagger(swaggerSpec)
+	swagger.ExtractSwagger(swaggerSpec, *quiet)
 
 	config := models.Config{
 		SpecUrl: *specUrl,
@@ -133,9 +134,12 @@ func main() {
 			Headers:        *headers,
 			SseHeaders:     *sseHeaders,
 		},
+		Quiet: *quiet,
 	}
 
-	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, SSE Addr: %s, Base URL: %s, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s, Headers: %s, SSE Headers: %s\n",
-		config.SpecUrl, config.SseCfg.SseMode, config.SseCfg.SseUrl, config.SseCfg.SseAddr, config.ApiCfg.BaseUrl, config.ApiCfg.IncludePaths, config.ApiCfg.ExcludePaths, config.ApiCfg.IncludeMethods, config.ApiCfg.ExcludeMethods, config.ApiCfg.Security, config.ApiCfg.BasicAuth, config.ApiCfg.ApiKeyAuth, config.ApiCfg.BearerAuth, config.ApiCfg.Headers, config.ApiCfg.SseHeaders)
+	if !*quiet {
+		fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, SSE Addr: %s, Base URL: %s, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s, Headers: %s, SSE Headers: %s\n",
+			config.SpecUrl, config.SseCfg.SseMode, config.SseCfg.SseUrl, config.SseCfg.SseAddr, config.ApiCfg.BaseUrl, config.ApiCfg.IncludePaths, config.ApiCfg.ExcludePaths, config.ApiCfg.IncludeMethods, config.ApiCfg.ExcludeMethods, config.ApiCfg.Security, config.ApiCfg.BasicAuth, config.ApiCfg.ApiKeyAuth, config.ApiCfg.BearerAuth, config.ApiCfg.Headers, config.ApiCfg.SseHeaders)
+	}
 	mcpserver.CreateServer(swaggerSpec, config)
 }
