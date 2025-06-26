@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "soraorc_swagger": {
+      "command": "swagger-mcp",
+      "args": [
+        "--specUrl=http://morpheus.test:5222/swagger.json",
+        "--baseUrl=http://morpheus.test:5211",
+        "--quiet"
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "soraorc_swagger": {
+      "command": "wsl",
+      "args": [
+        "-e", "bash", "-c",
+        "export PATH=$PATH:/home/fire/claude/go/bin:/home/fire/go/bin && swagger-mcp --specUrl=http://morpheus.test:5222/swagger.json --baseUrl=http://morpheus.test:5211 --quiet"
+      ]
+    }
+  }
+}
