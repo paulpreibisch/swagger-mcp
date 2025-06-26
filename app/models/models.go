@@ -38,6 +38,7 @@ type Endpoint struct {
 	Summary     string              `json:"summary"`
 	Description string              `json:"description"`
 	Parameters  []Parameter         `json:"parameters"`
+	RequestBody *RequestBody        `json:"requestBody,omitempty"`
 	Responses   map[string]Response `json:"responses"`
 	Consumes    []string            `json:"consumes"`
 	Produces    []string            `json:"produces"`
@@ -61,6 +62,15 @@ type Response struct {
 type SchemaRef struct {
 	Ref  string `json:"$ref,omitempty"`
 	Type string `json:"type,omitempty"`
+}
+
+type RequestBody struct {
+	Required bool                       `json:"required,omitempty"`
+	Content  map[string]RequestContent  `json:"content,omitempty"`
+}
+
+type RequestContent struct {
+	Schema *SchemaRef `json:"schema,omitempty"`
 }
 
 // SseConfig stores SSE (Server-Sent Events) related parameters

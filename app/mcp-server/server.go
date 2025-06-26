@@ -184,6 +184,7 @@ func LoadSwaggerServer(mcpServer *server.MCPServer, swaggerSpec models.SwaggerSp
 
 			reqMethod := fmt.Sprint(method)
 			reqBody := make(map[string]string)
+			hasRequestBody := false
 			reqPathParam := []string{}
 			reqQueryParam := []string{}
 			reqHeader := []string{}
@@ -255,6 +256,22 @@ func LoadSwaggerServer(mcpServer *server.MCPServer, swaggerSpec models.SwaggerSp
 					}
 				}
 			}
+
+			// Handle OpenAPI 3.0 requestBody
+			if details.RequestBody != nil && details.RequestBody.Content != nil {
+				hasRequestBody = true
+				// Look for application/json content
+				if jsonContent, exists := details.RequestBody.Content["application/json"]; exists && jsonContent.Schema != nil {
+					// For OpenAPI 3.0, always use a single body parameter for JSON content
+					// This provides a cleaner interface for structured data
+					toolOption = append(toolOption, mcp.WithString(
+						"body",
+						mcp.Description("JSON request body containing the complete object structure"),
+						mcp.Required(),
+					))
+					reqBody["body"] = "object"
+				}
+			}
 			for status, resp := range details.Responses {
 				if resp.Schema != nil {
 					schemaName := ExtractSchemaName(resp.Schema.Ref, resp.Schema.Type)
@@ -275,7 +292,7 @@ func LoadSwaggerServer(mcpServer *server.MCPServer, swaggerSpec models.SwaggerSp
 			mcpServer.AddTool(
 				mcp.NewTool(toolName, toolOption...),
 				CreateMCPToolHandler(
-					reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, apiCfg,
+					reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, hasRequestBody, apiCfg,
 				),
 			)
 		}
@@ -351,6 +368,7 @@ func CreateMCPToolHandler(
 	reqBody map[string]string,
 	reqMethod string,
 	reqHeader []string,
+	hasRequestBody bool,
 	apiCfg models.ApiConfig,
 ) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -381,60 +399,88 @@ func CreateMCPToolHandler(
 			currentReqURL = u.String()
 		}
 
-		reqBodyData := make(map[string]interface{})
-		for paramName, paramType := range reqBody {
-			paramStr, exists := request.Params.Arguments[paramName].(string)
-			if !exists {
-				return mcp.NewToolResultError(fmt.Sprintf("[Error] missing Body Parameter: %s", paramName)), nil
+		var reqBodyDataBytes []byte
+		var err error
+		
+		// Handle OpenAPI 3.0 style single body parameter vs Swagger 2.0 individual properties
+		if hasRequestBody && len(reqBody) == 1 {
+			// Check if we have a single "body" parameter (OpenAPI 3.0 style)
+			if bodyType, exists := reqBody["body"]; exists && bodyType == "object" {
+				if bodyParam, ok := request.Params.Arguments["body"].(string); ok {
+					// Validate JSON and use directly
+					var testObj interface{}
+					if err := json.Unmarshal([]byte(bodyParam), &testObj); err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid JSON in body parameter: %v", err)), nil
+					}
+					reqBodyDataBytes = []byte(bodyParam)
+				} else {
+					return mcp.NewToolResultError("[Error] missing body parameter"), nil
+				}
+			} else {
+				// Fall back to property-based processing
+				reqBodyData := make(map[string]interface{})
+				for paramName := range reqBody {
+					paramStr, exists := request.Params.Arguments[paramName].(string)
+					if !exists {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] missing Body Parameter: %s", paramName)), nil
+					}
+					reqBodyData[paramName] = paramStr
+				}
+				reqBodyDataBytes, err = json.Marshal(reqBodyData)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to marshal request body: %v", err)), nil
+				}
 			}
-
-			switch paramType {
-			case "string":
-				reqBodyData[paramName] = paramStr
-
-			case "int", "integer":
-				intValue, err := strconv.Atoi(paramStr)
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected int", paramName)), nil
+		} else {
+			// Original property-based approach for Swagger 2.0 or multiple properties
+			reqBodyData := make(map[string]interface{})
+			for paramName, paramType := range reqBody {
+				paramStr, exists := request.Params.Arguments[paramName].(string)
+				if !exists {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] missing Body Parameter: %s", paramName)), nil
 				}
-				reqBodyData[paramName] = intValue
 
-			case "float":
-				floatValue, err := strconv.ParseFloat(paramStr, 64)
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected float", paramName)), nil
+				switch paramType {
+				case "string":
+					reqBodyData[paramName] = paramStr
+				case "int", "integer":
+					intValue, err := strconv.Atoi(paramStr)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected int", paramName)), nil
+					}
+					reqBodyData[paramName] = intValue
+				case "float":
+					floatValue, err := strconv.ParseFloat(paramStr, 64)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected float", paramName)), nil
+					}
+					reqBodyData[paramName] = floatValue
+				case "bool", "boolean":
+					boolValue, err := strconv.ParseBool(paramStr)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected bool", paramName)), nil
+					}
+					reqBodyData[paramName] = boolValue
+				case "array":
+					var arrayValue []interface{}
+					if err := json.Unmarshal([]byte(paramStr), &arrayValue); err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected array", paramName)), nil
+					}
+					reqBodyData[paramName] = arrayValue
+				case "object":
+					var objectValue map[string]interface{}
+					if err := json.Unmarshal([]byte(paramStr), &objectValue); err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected object", paramName)), nil
+					}
+					reqBodyData[paramName] = objectValue
+				default:
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] unsupported parameter type: %s for %s", paramType, paramName)), nil
 				}
-				reqBodyData[paramName] = floatValue
-
-			case "bool", "boolean":
-				boolValue, err := strconv.ParseBool(paramStr)
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected bool", paramName)), nil
-				}
-				reqBodyData[paramName] = boolValue
-
-			case "array":
-				var arrayValue []interface{}
-				if err := json.Unmarshal([]byte(paramStr), &arrayValue); err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected array", paramName)), nil
-				}
-				reqBodyData[paramName] = arrayValue
-
-			case "object":
-				var objectValue map[string]interface{}
-				if err := json.Unmarshal([]byte(paramStr), &objectValue); err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected object", paramName)), nil
-				}
-				reqBodyData[paramName] = objectValue
-
-			default:
-				return mcp.NewToolResultError(fmt.Sprintf("[Error] unsupported parameter type: %s for %s", paramType, paramName)), nil
 			}
-
-		}
-		reqBodyDataBytes, err := json.Marshal(reqBodyData)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to marshal request body: %v", err)), nil
+			reqBodyDataBytes, err = json.Marshal(reqBodyData)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to marshal request body: %v", err)), nil
+			}
 		}
 
 		fmt.Printf("Request  : %s %s\n", strings.ToUpper(reqMethod), currentReqURL)
